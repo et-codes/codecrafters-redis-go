@@ -4,57 +4,41 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"reflect"
-	"strconv"
-	"sync"
+	"strings"
 )
 
 type ClientHandler struct {
-	Conn   io.ReadWriteCloser
-	Reader *bufio.Reader
-	Writer *bufio.Writer
+	Conn io.ReadWriteCloser
 }
 
 func NewClientHandler(conn io.ReadWriteCloser) *ClientHandler {
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
-	return &ClientHandler{Conn: conn, Reader: reader, Writer: writer}
+	return &ClientHandler{Conn: conn}
 }
 
 // Handle manages client communication with the server.
-func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
-	logger.Info("Connection initiated.")
+func (c *ClientHandler) Handle() {
 	defer c.Conn.Close()
-	defer wg.Done()
+	logger.Info("Connection initiated.")
 
-	msg, err := c.waitForMessage()
-	if err != nil {
-		logger.Error(err.Error())
-	}
+	scanner := bufio.NewScanner(c.Conn)
 
-	if reflect.DeepEqual(msg, []byte(pingCommand)) {
-		logger.Info("Ping received.")
-		err := c.sendMessage(pingResponse)
-		if err != nil {
-			logger.Error(err.Error())
+	for scanner.Scan() {
+		msg := scanner.Text()
+
+		switch strings.ToLower(msg) {
+		case "ping":
+			logger.Info("Ping command received.")
+			err := c.sendMessage(pingResponse)
+			if err != nil {
+				logger.Error(err.Error())
+			}
+		case "quit":
+			logger.Info("Quit command received, exiting client handler...")
+			return
+		default:
+			logger.Debug("Received: %s", msg)
 		}
 	}
-
-	logger.Info("Ending client handler.")
-}
-
-// waitForMessage waits for a client message and returns it to the caller.
-func (c *ClientHandler) waitForMessage() ([]byte, error) {
-	buffer := make([]byte, 14)
-	n, err := io.ReadFull(c.Conn, buffer)
-	if err != nil {
-		if err != io.EOF {
-			return nil, fmt.Errorf("error reading connection: %v", err)
-		}
-	}
-	logger.Debug("Client message received (%d bytes): %s", n, literalMessage(buffer[:n]))
-
-	return buffer[:n], nil
 }
 
 // sendMessage sends the passed message to the client.
@@ -64,14 +48,4 @@ func (c *ClientHandler) sendMessage(msg string) error {
 		return fmt.Errorf("error sending message: %v", err)
 	}
 	return nil
-}
-
-// literalMessage converts a byte array to a string with esacped literals.
-// For example []byte{13, 10} would return "\r\n".
-func literalMessage(msg []byte) string {
-	// Convert to literal string.
-	literal := strconv.Quote(string(msg))
-
-	// Remove beginning and ending double quotes.
-	return literal[1 : len(literal)-1]
 }

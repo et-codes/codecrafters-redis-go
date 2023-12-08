@@ -1,8 +1,6 @@
 package main
 
 import (
-	"sync"
-
 	"github.com/et-codes/codecrafters-redis-go/logging"
 )
 
@@ -14,8 +12,6 @@ const (
 var logger = logging.New(logging.LevelDebug)
 
 func main() {
-	var wg sync.WaitGroup
-
 	// Initiate server.
 	s := NewServer("localhost", 6379)
 	if err := s.Listen(); err != nil {
@@ -32,11 +28,6 @@ func main() {
 		}
 
 		client := NewClientHandler(conn)
-		wg.Add(1)
-		go client.Handle(&wg)
+		client.Handle()
 	}
-
-	// Wait for goroutines to finish.
-	wg.Wait()
-	logger.Info("All goroutines completed.")
 }
