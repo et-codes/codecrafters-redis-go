@@ -20,18 +20,19 @@ func (tc *TestClient) Close() error { return nil }
 func TestPingResponse(t *testing.T) {
 	// Create client.
 	message := make([]byte, len(pingCommand))
-	conn := NewTestClient(message)
+	tc := NewTestClient(message)
+	c := NewClient(tc)
 
 	// Send ping command to buffer.
-	_, err := conn.WriteString(pingCommand)
+	_, err := c.Conn.Write([]byte(pingCommand))
 	assert.NoError(t, err)
 
 	// Run the handler.
-	handle(conn)
+	c.Handle()
 
 	// Get the response.
 	response := make([]byte, len(pingResponse))
-	n, err := conn.Read(response)
+	n, err := c.Conn.Read(response)
 	assert.NoError(t, err)
 	assert.Equal(t, pingResponse, string(response[:n]))
 }

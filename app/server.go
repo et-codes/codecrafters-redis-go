@@ -2,57 +2,24 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net"
-	"strings"
-
-	"github.com/et-codes/codecrafters-redis-go/logging"
 )
 
-const (
-	host         = "localhost"
-	port         = "6379"
-	pingCommand  = "*1\r\n$4\r\nping\r\n"
-	pingResponse = "+PONG\r\n"
-)
-
-var logger = logging.New(logging.LevelDebug)
-
-func main() {
-	l, err := net.Listen("tcp", fmt.Sprintf("%s:%s", host, port))
-	if err != nil {
-		logger.Fatal("Failed to bind to port %s", port)
-	}
-	logger.Info("Listening on port %s...", port)
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			logger.Fatal("Error accepting connection: %v", err)
-		}
-		go handle(conn)
-	}
+type Server struct {
+	Host     string
+	Port     int
+	Listener net.Listener
 }
 
-func handle(conn io.ReadWriteCloser) {
-	logger.Info("Connection initiated.")
-	defer conn.Close()
+func NewServer(host string, port int) *Server {
+	return &Server{Host: host, Port: port}
+}
 
-	buffer := make([]byte, 1024)
-	n, err := conn.Read(buffer)
+func (s *Server) Listen() error {
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Host, s.Port))
 	if err != nil {
-		logger.Error("Error reading connection: %v", err)
-		return
+		return fmt.Errorf("failed to bind to port %d: %v", s.Port, err)
 	}
-	logger.Debug("Received %d bytes: %v", n, buffer[:n])
-
-	if strings.Contains(strings.ToLower(string(buffer)), "ping") {
-		logger.Info("Ping received.")
-		_, err := conn.Write([]byte(pingResponse))
-		if err != nil {
-			logger.Error("Error reading connection: %v", err)
-			return
-		}
-	}
-	logger.Info("Closing client connection.")
+	s.Listener = l
+	return nil
 }
