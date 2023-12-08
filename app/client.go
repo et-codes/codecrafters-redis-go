@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"strings"
+	"sync"
 )
 
 type Client struct {
@@ -14,9 +15,10 @@ func NewClient(conn io.ReadWriteCloser) *Client {
 }
 
 // Handle manages client communication with the server.
-func (c *Client) Handle() {
+func (c *Client) Handle(wg *sync.WaitGroup) {
 	logger.Info("Connection initiated.")
 	defer c.Conn.Close()
+	defer wg.Done()
 
 	buffer := make([]byte, 1024)
 	n, err := c.Conn.Read(buffer)
@@ -24,7 +26,7 @@ func (c *Client) Handle() {
 		logger.Error("Error reading connection: %v", err)
 		return
 	}
-	logger.Debug("Received %d bytes: %v", n, buffer[:n])
+	logger.Debug("Received %d bytes: %s", n, string(buffer[:n]))
 
 	if strings.Contains(strings.ToLower(string(buffer)), "ping") {
 		logger.Info("Ping received.")

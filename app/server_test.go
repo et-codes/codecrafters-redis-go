@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,16 +12,15 @@ type TestClient struct {
 	*bytes.Buffer
 }
 
-func NewTestClient(buffer []byte) *TestClient {
-	return &TestClient{bytes.NewBuffer(buffer)}
+func NewTestClient() *TestClient {
+	return &TestClient{bytes.NewBuffer([]byte{})}
 }
 
 func (tc *TestClient) Close() error { return nil }
 
 func TestPingResponse(t *testing.T) {
 	// Create client.
-	message := make([]byte, len(pingCommand))
-	tc := NewTestClient(message)
+	tc := NewTestClient()
 	c := NewClient(tc)
 
 	// Send ping command to buffer.
@@ -28,7 +28,10 @@ func TestPingResponse(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Run the handler.
-	c.Handle()
+	var wg sync.WaitGroup
+	wg.Add(1)
+	c.Handle(&wg)
+	defer wg.Wait()
 
 	// Get the response.
 	response := make([]byte, len(pingResponse))
