@@ -24,7 +24,6 @@ func main() {
 	logger.Info("Listening on port %d...", s.Port)
 
 	// Listen for client connections and send to handler.
-	clientCount := 0
 	for {
 		conn, err := s.Listener.Accept()
 		if err != nil {
@@ -35,7 +34,6 @@ func main() {
 		client := NewClient(conn)
 		wg.Add(1)
 		go client.Handle(&wg)
-		clientCount++
 	}
 
 	// Wait for goroutines to finish.

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -38,4 +40,16 @@ func (c *Client) Handle(wg *sync.WaitGroup) {
 	}
 
 	logger.Debug("Ending client handler.")
+}
+
+func (c *Client) waitForMessage() ([]byte, error) {
+	buffer := make([]byte, 1024)
+	n, err := c.Conn.Read(buffer)
+	if err != nil {
+		return nil, fmt.Errorf("error reading connection: %v", err)
+	}
+	bufstr := string(buffer[:n])
+	logger.Debug("Client message received: %d bytes, %s", n, strconv.Quote(bufstr))
+
+	return buffer[:n], nil
 }

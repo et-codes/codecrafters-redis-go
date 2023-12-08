@@ -33,9 +33,23 @@ func TestPingResponse(t *testing.T) {
 	c.Handle(&wg)
 	defer wg.Wait()
 
-	// Get the response.
-	response := make([]byte, len(pingResponse))
-	n, err := c.Conn.Read(response)
-	assert.NoError(t, err)
-	assert.Equal(t, pingResponse, string(response[:n]))
+	t.Run("responds to ping command", func(t *testing.T) {
+		// Get the response.
+		response := make([]byte, len(pingResponse))
+		n, err := c.Conn.Read(response)
+		assert.NoError(t, err)
+		assert.Equal(t, pingResponse, string(response[:n]))
+	})
+
+	t.Run("responds to second ping command", func(t *testing.T) {
+		// Send second ping.
+		_, err = c.Conn.Write([]byte(pingCommand))
+		assert.NoError(t, err)
+
+		// Get the response.
+		response := make([]byte, len(pingResponse))
+		n, err := c.Conn.Read(response)
+		assert.NoError(t, err)
+		assert.Equal(t, pingResponse, string(response[:n]))
+	})
 }
