@@ -21,7 +21,7 @@ func (tc *TestClient) Close() error { return nil }
 func TestPingResponse(t *testing.T) {
 	// Create client.
 	tc := NewTestClient()
-	c := NewClient(tc)
+	c := NewClientHandler(tc)
 
 	// Send ping command to buffer.
 	_, err := c.Conn.Write([]byte(pingCommand))

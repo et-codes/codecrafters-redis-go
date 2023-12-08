@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	pingCommand  = "*1\r\n$4\r\nping\r\n"
-	pingResponse = "+PONG\r\n"
+	pingCommand  = "*1\r\n$4\r\nping\r\n" // 14 bytes
+	pingResponse = "+PONG\r\n"            // 7 bytes
 )
 
 var logger = logging.New(logging.LevelDebug)
@@ -31,7 +31,7 @@ func main() {
 			break
 		}
 
-		client := NewClient(conn)
+		client := NewClientHandler(conn)
 		wg.Add(1)
 		go client.Handle(&wg)
 	}
