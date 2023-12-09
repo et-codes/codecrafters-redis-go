@@ -2,16 +2,18 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
 )
 
 type ClientHandler struct {
-	Conn io.ReadWriteCloser
+	Context context.Context
+	Conn    io.ReadWriteCloser
 }
 
-func NewClientHandler(conn io.ReadWriteCloser) *ClientHandler {
+func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser) *ClientHandler {
 	return &ClientHandler{Conn: conn}
 }
 

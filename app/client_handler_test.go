@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,7 +25,7 @@ func (tc *TestClient) Close() error { return nil }
 func TestClientHandler(t *testing.T) {
 	// Create client.
 	tc := NewTestClient()
-	c := NewClientHandler(tc)
+	c := NewClientHandler(context.Background(), tc)
 
 	t.Run("send message", func(t *testing.T) {
 		// Send message.

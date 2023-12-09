@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/et-codes/codecrafters-redis-go/logging"
 )
 
@@ -12,10 +14,13 @@ const (
 var logger = logging.New(logging.LevelDebug)
 
 func main() {
+	ctx := context.Background()
+
 	// Initiate server.
-	s := NewServer("localhost", 6379)
+	s := NewServer(ctx, "localhost", 6379)
 	if err := s.Run(); err != nil {
 		logger.Fatal("Server error: ", err)
 	}
-	logger.Info("Listening on port %d...", s.Port)
+
+	logger.Info("Server shutdown complete.")
 }
