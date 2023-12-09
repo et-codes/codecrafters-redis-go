@@ -14,20 +14,8 @@ var logger = logging.New(logging.LevelDebug)
 func main() {
 	// Initiate server.
 	s := NewServer("localhost", 6379)
-	if err := s.Listen(); err != nil {
-		logger.Fatal("Failed to bind to port %d", s.Port)
+	if err := s.Run(); err != nil {
+		logger.Fatal("Server error: ", err)
 	}
 	logger.Info("Listening on port %d...", s.Port)
-
-	// Listen for client connections and send to handler.
-	for {
-		conn, err := s.Listener.Accept()
-		if err != nil {
-			logger.Error("Error accepting connection: %v", err)
-			break
-		}
-
-		client := NewClientHandler(conn)
-		client.Handle()
-	}
 }
