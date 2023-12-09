@@ -61,7 +61,10 @@ func (s *Server) Run() error {
 		}
 
 		client := NewClientHandler(ctx, conn)
-		client.Handle()
+
+		wg.Add(1)
+		go client.Handle(&wg)
+
 		logger.Info("Client connected.")
 	}
 }

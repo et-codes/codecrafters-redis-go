@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 )
 
 type ClientHandler struct {
@@ -14,31 +15,40 @@ type ClientHandler struct {
 }
 
 func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser) *ClientHandler {
-	return &ClientHandler{Conn: conn}
+	return &ClientHandler{Context: ctx, Conn: conn}
 }
 
 // Handle manages client communication with the server.
-func (c *ClientHandler) Handle() {
+func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 	defer c.Conn.Close()
+	defer wg.Done()
 	logger.Info("Connection initiated.")
 
 	scanner := bufio.NewScanner(c.Conn)
 
-	for scanner.Scan() {
-		msg := scanner.Text()
-
-		switch strings.ToLower(msg) {
-		case "ping":
-			logger.Info("Ping command received.")
-			err := c.sendMessage(pingResponse)
-			if err != nil {
-				logger.Error(err.Error())
-			}
-		case "quit":
-			logger.Info("Quit command received, exiting client handler...")
+	for {
+		select {
+		case <-c.Context.Done():
+			logger.Info("Client handler stopping...")
 			return
 		default:
-			logger.Debug("Received: %s", msg)
+			for scanner.Scan() {
+				msg := scanner.Text()
+
+				switch strings.ToLower(msg) {
+				case "ping":
+					logger.Info("PING command received.")
+					err := c.sendMessage(pingResponse)
+					if err != nil {
+						logger.Error(err.Error())
+					}
+				case "quit":
+					logger.Info("QUIT command received, stopping client...")
+					return
+				default:
+					logger.Debug("Received: %s", msg)
+				}
+			}
 		}
 	}
 }
