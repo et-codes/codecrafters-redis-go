@@ -9,6 +9,11 @@ import (
 	"sync"
 )
 
+const (
+	pingCommand  = "*1\r\n$4\r\nping\r\n" // 14 bytes
+	pingResponse = "+PONG\r\n"            // 7 bytes
+)
+
 type ClientHandler struct {
 	Context context.Context
 	Conn    io.ReadWriteCloser
