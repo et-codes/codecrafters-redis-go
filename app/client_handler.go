@@ -28,13 +28,8 @@ func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser) *ClientHandl
 }
 
 type Command struct {
-	Command  string
-	Args     []string
-	Response string
-}
-
-func NewCommmand() *Command {
-	return &Command{}
+	Command string
+	Args    []string
 }
 
 // Handle manages client communication with the server.
@@ -45,7 +40,7 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 	scanner := bufio.NewScanner(c.Conn)
 
 	var (
-		cmdArray         []string
+		cmd              Command
 		cmdArrayLength   int
 		cmdArrayReceived int
 	)
@@ -70,18 +65,22 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 					// Don't need to do anything with this token for now.
 				default:
 					if cmdArrayReceived < cmdArrayLength {
-						cmdArray = append(cmdArray, msg)
+						if cmdArrayReceived == 0 {
+							cmd.Command = msg
+						} else {
+							cmd.Args = append(cmd.Args, msg)
+						}
 						cmdArrayReceived++
 					}
 				}
 
 				// Execute command if the array is complete.
 				if cmdArrayReceived == cmdArrayLength {
-					if err := c.executeCommand(cmdArray); err != nil {
-						logger.Error("Error executing command %v: %v", cmdArray, err)
+					if err := c.executeCommand(cmd); err != nil {
+						logger.Error("Error executing command %v: %v", cmd, err)
 					}
 					// Reset for next command.
-					cmdArray = []string{}
+					cmd = Command{}
 					cmdArrayLength = 0
 				}
 			}
@@ -90,34 +89,34 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 }
 
 // executeCommand executes the command in the command array.
-func (c *ClientHandler) executeCommand(cmdArray []string) error {
+func (c *ClientHandler) executeCommand(cmd Command) error {
 	var err error
-	switch cmdArray[0] {
+	switch cmd.Command {
 	case "ping":
 		logger.Info("PING command received.")
 		err = c.sendMessage(pingResponse)
 	case "echo":
-		if len(cmdArray) < 2 {
+		if len(cmd.Args) < 1 {
 			return fmt.Errorf("insufficient number of arguments for ECHO")
 		}
-		length := len(cmdArray[1])
-		valToEcho := cmdArray[1]
+		length := len(cmd.Args[0])
+		valToEcho := cmd.Args[0]
 		logger.Info("ECHO %q command received.", valToEcho)
 		err = c.sendMessage(fmt.Sprintf(echoResponse, length, valToEcho))
 	case "set":
-		if len(cmdArray) < 3 {
+		if len(cmd.Args) < 2 {
 			return fmt.Errorf("insufficient number of arguments for SET")
 		}
-		key := cmdArray[1]
-		value := cmdArray[2]
+		key := cmd.Args[0]
+		value := cmd.Args[1]
 		logger.Info("SET %s: %q command received.", key, value)
 		c.Store[key] = value
 		err = c.sendMessage(okResponse)
 	case "get":
-		if len(cmdArray) < 2 {
+		if len(cmd.Args) < 1 {
 			return fmt.Errorf("insufficient number of arguments for GET")
 		}
-		key := cmdArray[1]
+		key := cmd.Args[0]
 		val, ok := c.Store[key]
 		if !ok {
 			return fmt.Errorf("key %s not found", key)
