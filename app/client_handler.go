@@ -11,11 +11,8 @@ import (
 )
 
 const (
-	pingCommand  = "*1\r\n$4\r\nping\r\n"
 	pingResponse = "+PONG\r\n"
-	echoResponse = "$%d\r\n%s\r\n" // follow with length and value
 	okResponse   = "+OK\r\n"
-	getResponse  = "+%s\r\n" // follow with value
 	nullResponse = "$-1\r\n"
 )
 
@@ -118,10 +115,9 @@ func (c *ClientHandler) handleEcho(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("insufficient number of arguments for ECHO")
 	}
-	length := len(args[0])
 	valToEcho := args[0]
 	logger.Info("ECHO %q command received.", valToEcho)
-	return c.sendMessage(fmt.Sprintf(echoResponse, length, valToEcho))
+	return c.sendMessage(encodeBulkString(valToEcho))
 }
 
 // handleSet handles SET commands.
@@ -156,7 +152,7 @@ func (c *ClientHandler) handleGet(args []string) error {
 	key := args[0]
 	val, ok := c.Store[key]
 	if ok {
-		return c.sendMessage(fmt.Sprintf(getResponse, val))
+		return c.sendMessage(encodeSimpleString(val))
 	}
 	return c.sendMessage(nullResponse)
 }

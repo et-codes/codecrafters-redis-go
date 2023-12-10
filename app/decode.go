@@ -5,7 +5,11 @@ import (
 	"strconv"
 )
 
-const sep = "\r\n"
+const (
+	fmtArray        = "*%d\r\n"
+	fmtBulkStr      = "$%d\r\n%s\r\n"
+	fmtSimpleString = "+%s\r\n"
+)
 
 func decodeArrayLength(msg string) int {
 	length, err := strconv.Atoi(msg[1:])
@@ -15,10 +19,18 @@ func decodeArrayLength(msg string) int {
 	return length
 }
 
+func encodeSimpleString(str string) string {
+	return fmt.Sprintf(fmtSimpleString, str)
+}
+
+func encodeBulkString(str string) string {
+	return fmt.Sprintf(fmtBulkStr, len(str), str)
+}
+
 func encodeBulkStringArray(length int, bulkStrings ...string) string {
-	encoded := fmt.Sprintf("*%d%s", length, sep)
+	encoded := fmt.Sprintf(fmtArray, length)
 	for _, str := range bulkStrings {
-		encoded += fmt.Sprintf("$%d%s%s%s", len(str), sep, str, sep)
+		encoded += encodeBulkString(str)
 	}
 	return encoded
 }
