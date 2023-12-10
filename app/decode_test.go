@@ -16,6 +16,10 @@ func TestDecode(t *testing.T) {
 			encodeBulkStringArray(2, "dir", "/tmp/redis-files"),
 			"*2\r\n$3\r\ndir\r\n$16\r\n/tmp/redis-files\r\n",
 		},
+		"encodes ping command": {
+			encodeBulkStringArray(1, "ping"),
+			"*1\r\n$4\r\nping\r\n",
+		},
 	}
 
 	for name, test := range tests {
