@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -53,12 +54,10 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 		default:
 			for scanner.Scan() {
 				msg := scanner.Text()
-				logger.Debug("Recieved: %s", msg)
 
 				switch msg[0] {
 				case '*':
 					length := decodeArrayLength(msg)
-					logger.Debug("Array length: %d", length)
 					cmdArrayLength = length
 					cmdArrayReceived = 0
 				case '$':
@@ -99,6 +98,8 @@ func (c *ClientHandler) executeCommand(cmd Command) error {
 		return c.handleSet(cmd.Args)
 	case "get":
 		return c.handleGet(cmd.Args)
+	case "config":
+		return c.handleConfig(cmd.Args)
 	default:
 		return fmt.Errorf("unrecognized command %q", cmd.Command)
 	}
@@ -150,11 +151,33 @@ func (c *ClientHandler) handleGet(args []string) error {
 		return fmt.Errorf("insufficient number of arguments for GET")
 	}
 	key := args[0]
+	logger.Info("GET %s command received.", key)
 	val, ok := c.Store[key]
 	if ok {
 		return c.sendMessage(encodeSimpleString(val))
 	}
 	return c.sendMessage(nullResponse)
+}
+
+// handleConfig handles CONFIG requests.
+func (c *ClientHandler) handleConfig(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("insufficient number of arguments for CONFIG")
+	}
+	subCmd := strings.ToLower(args[0])
+	switch subCmd {
+	case "get":
+		key := args[1]
+		logger.Info("CONFIG GET %s command received.", key)
+	case "set":
+		if len(args) < 3 {
+			return fmt.Errorf("insufficient number of arguments for CONFIG SET")
+		}
+		key := args[1]
+		value := args[2]
+		logger.Info("CONFIG SET %s: %q command received.", key, value)
+	}
+	return nil
 }
 
 // sendMessage sends the message to the client.
