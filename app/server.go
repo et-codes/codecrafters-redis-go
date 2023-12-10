@@ -49,8 +49,10 @@ func (s *Server) Run() error {
 			// Accept will return error when the listener is closed.  Use
 			// this to implement graceful shutdown.
 			logger.Info("Shutting down server...")
-			stop()    // ctx.Done() sent to ClientHandlers.
+			stop() // ctx.Done() sent to ClientHandlers.
+			logger.Debug("Stop message sent, waiting for goroutines to complete...")
 			wg.Wait() // Wait for goroutines to complete.
+			logger.Debug("Waitgroup clear.")
 
 			switch err.(type) {
 			case *net.OpError:

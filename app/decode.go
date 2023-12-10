@@ -1,16 +1,17 @@
 package main
 
 import (
-	"regexp"
 	"strconv"
 	"strings"
 )
 
 const sep = "\r\n"
 
-type Decoded []any
+func DecodeRESP(msg string) any {
+	// Fix extra \ which gets added to escaped characters when passing
+	// in the string as a parameter. TODO: why does this happen?
+	msg = strings.ReplaceAll(msg, "\\r\\n", sep)
 
-func DecodeRESP(msg string) Decoded {
 	switch msg[0] {
 	case '+':
 		return decodeSimpleString(msg)
@@ -19,46 +20,46 @@ func DecodeRESP(msg string) Decoded {
 	case '$':
 		return decodeBulkString(msg)
 	case '*':
-		return decodeArray(msg)
+		return decodeArrayLength(msg)
 	default:
-		return Decoded{}
+		return nil
 	}
 }
 
-func decodeSimpleString(msg string) Decoded {
-	return Decoded{strings.ToLower(msg[1:])}
+// parseToken removes the \r\n separator from the incoming RESP message.
+func parseToken(msg string) string {
+	for i, c := range msg {
+		if c == '\n' {
+			return msg[:i]
+		}
+	}
+	return ""
 }
 
-func decodeInteger(msg string) Decoded {
+func decodeSimpleString(msg string) string {
+	return strings.ToLower(msg[1:])
+}
+
+func decodeInteger(msg string) int {
 	numstr := strings.TrimSuffix(msg[1:], sep)
 	num, _ := strconv.Atoi(numstr)
-	return Decoded{num}
+	return num
 }
 
-func decodeBulkString(msg string) Decoded {
+func decodeBulkString(msg string) string {
 	parts := strings.Split(msg[1:], sep)
-	return Decoded{strings.ToLower(parts[1])}
+	if len(parts) < 2 {
+		return ""
+	}
+	return strings.ToLower(parts[1])
 }
 
-func decodeArray(msg string) Decoded {
-	result := Decoded{}
-
-	lengthStr, remainder, _ := strings.Cut(msg[1:], sep)
-	length, err := strconv.Atoi(lengthStr)
+func decodeArrayLength(msg string) int {
+	parts := strings.Split(msg[1:], sep)
+	length, err := strconv.Atoi(parts[0])
 	if err != nil {
 		logger.Error("Error decoding array %s: %v", msg, err)
-		return result
+		return -1
 	}
-
-	// Empty array.
-	if length == 0 {
-		return result
-	}
-
-	re := regexp.MustCompile(".*\r\n.*\r\n")
-	matches := re.FindAllString(remainder, -1)
-	for _, part := range matches {
-		result = append(result, DecodeRESP(part)...)
-	}
-	return result
+	return length
 }
