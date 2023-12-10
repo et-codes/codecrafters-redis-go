@@ -20,13 +20,12 @@ func main() {
 	// Get command-line arguments.
 	args := os.Args
 	for i := 1; i < len(args); i += 2 {
-		if args[i] == "--dir" {
+		if args[i] == "--dir" && len(args) >= i {
 			cfg.DBDir = args[i+1]
-		} else if args[i] == "--dbfilename" {
+		} else if args[i] == "--dbfilename" && len(args) >= i {
 			cfg.DBFilename = args[i+1]
 		}
 	}
-
 	logger.Debug("Server config: %+v", cfg)
 
 	// Initiate server.
