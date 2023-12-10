@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
+	"time"
 )
 
 const (
@@ -14,6 +16,7 @@ const (
 	echoResponse = "$%d\r\n%s\r\n" // follow with length and value
 	okResponse   = "+OK\r\n"
 	getResponse  = "+%s\r\n" // follow with value
+	nullResponse = "$-1\r\n"
 )
 
 type ClientHandler struct {
@@ -38,7 +41,7 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 	defer wg.Done()
 	logger.Info("Connection initiated.")
 	scanner := bufio.NewScanner(c.Conn)
-
+	delete(c.Store, "hello")
 	var (
 		cmd              Command
 		cmdArrayLength   int
@@ -90,43 +93,75 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 
 // executeCommand executes the command in the command array.
 func (c *ClientHandler) executeCommand(cmd Command) error {
-	var err error
 	switch cmd.Command {
 	case "ping":
-		logger.Info("PING command received.")
-		err = c.sendMessage(pingResponse)
+		return c.handlePing()
 	case "echo":
-		if len(cmd.Args) < 1 {
-			return fmt.Errorf("insufficient number of arguments for ECHO")
-		}
-		length := len(cmd.Args[0])
-		valToEcho := cmd.Args[0]
-		logger.Info("ECHO %q command received.", valToEcho)
-		err = c.sendMessage(fmt.Sprintf(echoResponse, length, valToEcho))
+		return c.handleEcho(cmd.Args)
 	case "set":
-		if len(cmd.Args) < 2 {
-			return fmt.Errorf("insufficient number of arguments for SET")
-		}
-		key := cmd.Args[0]
-		value := cmd.Args[1]
-		logger.Info("SET %s: %q command received.", key, value)
-		c.Store[key] = value
-		err = c.sendMessage(okResponse)
+		return c.handleSet(cmd.Args)
 	case "get":
-		if len(cmd.Args) < 1 {
-			return fmt.Errorf("insufficient number of arguments for GET")
-		}
-		key := cmd.Args[0]
-		val, ok := c.Store[key]
-		if !ok {
-			return fmt.Errorf("key %s not found", key)
-		}
-		err = c.sendMessage(fmt.Sprintf(getResponse, val))
+		return c.handleGet(cmd.Args)
+	default:
+		return fmt.Errorf("unrecognized command %q", cmd.Command)
 	}
-	return err
 }
 
-// sendMessage sends the passed message to the client.
+// handlePing handles PING commands.
+func (c *ClientHandler) handlePing() error {
+	logger.Info("PING command received.")
+	return c.sendMessage(pingResponse)
+}
+
+// handleEcho handles ECHO commands.
+func (c *ClientHandler) handleEcho(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("insufficient number of arguments for ECHO")
+	}
+	length := len(args[0])
+	valToEcho := args[0]
+	logger.Info("ECHO %q command received.", valToEcho)
+	return c.sendMessage(fmt.Sprintf(echoResponse, length, valToEcho))
+}
+
+// handleSet handles SET commands.
+func (c *ClientHandler) handleSet(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("insufficient number of arguments for SET")
+	}
+	key := args[0]
+	value := args[1]
+	logger.Info("SET %s: %q command received.", key, value)
+	c.Store[key] = value
+
+	// Check for expiration arguments.
+	if len(args) == 4 && args[2] == "px" {
+		expiry, err := strconv.Atoi(args[3])
+		if err != nil {
+			return fmt.Errorf("error parsing expiration time: %v", err)
+		}
+		go func() {
+			time.Sleep(time.Duration(expiry) * time.Millisecond)
+			delete(c.Store, key)
+		}()
+	}
+	return c.sendMessage(okResponse)
+}
+
+// handleGet handles GET commands.
+func (c *ClientHandler) handleGet(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("insufficient number of arguments for GET")
+	}
+	key := args[0]
+	val, ok := c.Store[key]
+	if ok {
+		return c.sendMessage(fmt.Sprintf(getResponse, val))
+	}
+	return c.sendMessage(nullResponse)
+}
+
+// sendMessage sends the message to the client.
 func (c *ClientHandler) sendMessage(msg string) error {
 	_, err := c.Conn.Write([]byte(msg))
 	if err != nil {
