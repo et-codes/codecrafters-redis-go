@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"reflect"
 	"sync"
 )
 
@@ -31,8 +30,9 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 	scanner := bufio.NewScanner(c.Conn)
 
 	var (
-		remainingElements int
-		cmdArray          []any
+		cmdArray         []string
+		cmdArrayLength   int
+		cmdArrayReceived int
 	)
 
 	for {
@@ -43,55 +43,46 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 		default:
 			for scanner.Scan() {
 				msg := scanner.Text()
-				if err := scanner.Err(); err != nil {
-					logger.Error("Error scanning client: %v", err)
-					return
-				}
+				logger.Debug("Recieved: %s", msg)
 
-				decoded := DecodeRESP(msg)
-				logger.Debug("Received message %s, decoded to %v", msg, decoded)
-				if decoded == nil {
-					continue
-				}
-
-				if remainingElements > 0 {
-					cmdArray = append(cmdArray, decoded)
-					remainingElements--
-					logger.Debug("adding %v to array", decoded)
-				}
-				if remainingElements == 0 && len(cmdArray) > 0 {
-					logger.Debug("Command array: %v", cmdArray)
-					switch cmdArray[0] {
-					case "ping":
-						logger.Info("PING command received.")
-						err := c.sendMessage(pingResponse)
-						if err != nil {
-							logger.Error(err.Error())
-						}
-					case "echo":
-						logger.Info("ECHO %q command received.", cmdArray[1])
-						err := c.sendMessage(fmt.Sprintf("$%d\r\n%s\r\n", len(cmdArray[1].(string)), cmdArray[1]))
-						if err != nil {
-							logger.Error(err.Error())
-						}
-					case "quit":
-						logger.Info("QUIT command received, stopping client...")
-						return
-					default:
-						logger.Debug("Received: %s", msg)
+				switch msg[0] {
+				case '*':
+					length := decodeArrayLength(msg)
+					logger.Debug("Array length: %d", length)
+					cmdArrayLength = length
+					cmdArrayReceived = 0
+				case '$':
+					// Don't need to do anything with this token for now.
+				default:
+					if cmdArrayReceived < cmdArrayLength {
+						cmdArray = append(cmdArray, msg)
+						cmdArrayReceived++
 					}
 				}
 
-				// If array is being built, intercept the elements.
-				if reflect.TypeOf(decoded).Kind() == reflect.Int {
-					// Start building array.
-					logger.Debug("Building command array...")
-					remainingElements = decoded.(int)
-					cmdArray = []any{}
+				// Execute command if the array is complete.
+				if cmdArrayReceived == cmdArrayLength {
+					if err := c.executeCommand(cmdArray); err != nil {
+						logger.Error("Error executing command %v: %v", cmdArray, err)
+					}
 				}
 			}
 		}
 	}
+}
+
+// executeCommand executes the command in the command array.
+func (c *ClientHandler) executeCommand(cmdArray []string) error {
+	var err error
+	switch cmdArray[0] {
+	case "ping":
+		logger.Info("PING command received.")
+		err = c.sendMessage(pingResponse)
+	case "echo":
+		logger.Info("ECHO %q command received.", cmdArray[1])
+		err = c.sendMessage(fmt.Sprintf("$%d\r\n%s\r\n", len(cmdArray[1]), cmdArray[1]))
+	}
+	return err
 }
 
 // sendMessage sends the passed message to the client.
