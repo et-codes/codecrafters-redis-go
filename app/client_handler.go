@@ -9,17 +9,32 @@ import (
 )
 
 const (
-	pingCommand  = "*1\r\n$4\r\nping\r\n" // 14 bytes
-	pingResponse = "+PONG\r\n"            // 7 bytes
+	pingCommand  = "*1\r\n$4\r\nping\r\n"
+	pingResponse = "+PONG\r\n"
+	echoResponse = "$%d\r\n%s\r\n" // follow with length and value
+	okResponse   = "+OK\r\n"
+	getResponse  = "+%s\r\n" // follow with value
 )
 
 type ClientHandler struct {
 	Context context.Context
 	Conn    io.ReadWriteCloser
+	Store   map[string]string
 }
 
 func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser) *ClientHandler {
-	return &ClientHandler{Context: ctx, Conn: conn}
+	store := make(map[string]string)
+	return &ClientHandler{Context: ctx, Conn: conn, Store: store}
+}
+
+type Command struct {
+	Command  string
+	Args     []string
+	Response string
+}
+
+func NewCommmand() *Command {
+	return &Command{}
 }
 
 // Handle manages client communication with the server.
@@ -65,6 +80,9 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 					if err := c.executeCommand(cmdArray); err != nil {
 						logger.Error("Error executing command %v: %v", cmdArray, err)
 					}
+					// Reset for next command.
+					cmdArray = []string{}
+					cmdArrayLength = 0
 				}
 			}
 		}
@@ -79,8 +97,32 @@ func (c *ClientHandler) executeCommand(cmdArray []string) error {
 		logger.Info("PING command received.")
 		err = c.sendMessage(pingResponse)
 	case "echo":
-		logger.Info("ECHO %q command received.", cmdArray[1])
-		err = c.sendMessage(fmt.Sprintf("$%d\r\n%s\r\n", len(cmdArray[1]), cmdArray[1]))
+		if len(cmdArray) < 2 {
+			return fmt.Errorf("insufficient number of arguments for ECHO")
+		}
+		length := len(cmdArray[1])
+		valToEcho := cmdArray[1]
+		logger.Info("ECHO %q command received.", valToEcho)
+		err = c.sendMessage(fmt.Sprintf(echoResponse, length, valToEcho))
+	case "set":
+		if len(cmdArray) < 3 {
+			return fmt.Errorf("insufficient number of arguments for SET")
+		}
+		key := cmdArray[1]
+		value := cmdArray[2]
+		logger.Info("SET %s: %q command received.", key, value)
+		c.Store[key] = value
+		err = c.sendMessage(okResponse)
+	case "get":
+		if len(cmdArray) < 2 {
+			return fmt.Errorf("insufficient number of arguments for GET")
+		}
+		key := cmdArray[1]
+		val, ok := c.Store[key]
+		if !ok {
+			return fmt.Errorf("key %s not found", key)
+		}
+		err = c.sendMessage(fmt.Sprintf(getResponse, val))
 	}
 	return err
 }
