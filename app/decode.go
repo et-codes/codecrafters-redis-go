@@ -8,30 +8,40 @@ import (
 
 const sep = "\r\n"
 
-func DecodeRESP(msg string) any {
+type Decoded []any
+
+func DecodeRESP(msg string) Decoded {
 	switch msg[0] {
 	case '+':
 		return decodeSimpleString(msg)
+	case ':':
+		return decodeInteger(msg)
 	case '$':
 		return decodeBulkString(msg)
 	case '*':
 		return decodeArray(msg)
 	default:
-		return ""
+		return Decoded{}
 	}
 }
 
-func decodeSimpleString(msg string) string {
-	return strings.ToLower(msg[1:])
+func decodeSimpleString(msg string) Decoded {
+	return Decoded{strings.ToLower(msg[1:])}
 }
 
-func decodeBulkString(msg string) string {
+func decodeInteger(msg string) Decoded {
+	numstr := strings.TrimSuffix(msg[1:], sep)
+	num, _ := strconv.Atoi(numstr)
+	return Decoded{num}
+}
+
+func decodeBulkString(msg string) Decoded {
 	parts := strings.Split(msg[1:], sep)
-	return strings.ToLower(parts[1])
+	return Decoded{strings.ToLower(parts[1])}
 }
 
-func decodeArray(msg string) []any {
-	result := []any{}
+func decodeArray(msg string) Decoded {
+	result := Decoded{}
 
 	lengthStr, remainder, _ := strings.Cut(msg[1:], sep)
 	length, err := strconv.Atoi(lengthStr)
@@ -40,6 +50,7 @@ func decodeArray(msg string) []any {
 		return result
 	}
 
+	// Empty array.
 	if length == 0 {
 		return result
 	}
@@ -47,7 +58,7 @@ func decodeArray(msg string) []any {
 	re := regexp.MustCompile(".*\r\n.*\r\n")
 	matches := re.FindAllString(remainder, -1)
 	for _, part := range matches {
-		result = append(result, DecodeRESP(part))
+		result = append(result, DecodeRESP(part)...)
 	}
 	return result
 }
