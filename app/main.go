@@ -12,7 +12,11 @@ func main() {
 	ctx := context.Background()
 
 	// Initiate server.
-	s := NewServer(ctx, "localhost", 6379)
+	c := ServerConfig{
+		Host: "localhost",
+		Port: 6379,
+	}
+	s := NewServer(ctx, c)
 	if err := s.Run(); err != nil {
 		logger.Fatal("Server error: ", err)
 	}

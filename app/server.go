@@ -11,12 +11,18 @@ import (
 
 type Server struct {
 	Context context.Context
-	Host    string
-	Port    int
+	Config  ServerConfig
 }
 
-func NewServer(ctx context.Context, host string, port int) *Server {
-	return &Server{Context: ctx, Host: host, Port: port}
+type ServerConfig struct {
+	Host       string
+	Port       int
+	DBDir      string
+	DBFilename string
+}
+
+func NewServer(ctx context.Context, config ServerConfig) *Server {
+	return &Server{Context: ctx, Config: config}
 }
 
 func (s *Server) Run() error {
@@ -27,11 +33,11 @@ func (s *Server) Run() error {
 	var wg sync.WaitGroup
 
 	// Start TCP listener.
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Host, s.Port))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Config.Host, s.Config.Port))
 	if err != nil {
-		return fmt.Errorf("failed to bind to port %d: %v", s.Port, err)
+		return fmt.Errorf("failed to bind to port %d: %v", s.Config.Port, err)
 	}
-	logger.Info("Listening on port %d...", s.Port)
+	logger.Info("Listening on port %d...", s.Config.Port)
 
 	// Start goroutine that stops listener when signal is received.
 	wg.Add(1)
