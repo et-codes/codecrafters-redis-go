@@ -34,8 +34,11 @@ func decodeArray(msg string) []any {
 	result := []any{}
 
 	lengthStr, remainder, _ := strings.Cut(msg[1:], sep)
-	length, _ := strconv.Atoi(lengthStr)
-	logger.Debug("Array with length %d: %s", length, remainder)
+	length, err := strconv.Atoi(lengthStr)
+	if err != nil {
+		logger.Error("Error decoding array %s: %v", msg, err)
+		return result
+	}
 
 	if length == 0 {
 		return result
