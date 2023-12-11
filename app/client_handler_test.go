@@ -25,11 +25,11 @@ func (tc *TestClient) Close() error { return nil }
 func TestClientHandler(t *testing.T) {
 	// Create client.
 	tc := NewTestClient()
-	c := NewClientHandler(context.Background(), tc)
+	c := NewClientHandler(context.Background(), tc, nil)
 
 	t.Run("send message", func(t *testing.T) {
 		// Send message.
-		err := c.sendMessage(pingResponse)
+		err := c.send(pingResponse)
 		assert.NoError(t, err)
 
 		// Read message back.

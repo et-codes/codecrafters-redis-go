@@ -20,12 +20,17 @@ const (
 type ClientHandler struct {
 	Context context.Context
 	Conn    io.ReadWriteCloser
+	Server  *Server
 	Store   map[string]string
 }
 
-func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser) *ClientHandler {
-	store := make(map[string]string)
-	return &ClientHandler{Context: ctx, Conn: conn, Store: store}
+func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser, server *Server) *ClientHandler {
+	return &ClientHandler{
+		Context: ctx,
+		Conn:    conn,
+		Server:  server,
+		Store:   make(map[string]string),
+	}
 }
 
 type Command struct {
@@ -39,11 +44,11 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 	defer wg.Done()
 	logger.Info("Connection initiated.")
 	scanner := bufio.NewScanner(c.Conn)
-	delete(c.Store, "hello")
+
 	var (
-		cmd              Command
-		cmdArrayLength   int
-		cmdArrayReceived int
+		cmd         Command // Command object
+		cmdLength   int     // Number of words in command + args
+		cmdReceived int     // Number of words received from client
 	)
 
 	for {
@@ -58,29 +63,29 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 				switch msg[0] {
 				case '*':
 					length := decodeArrayLength(msg)
-					cmdArrayLength = length
-					cmdArrayReceived = 0
+					cmdLength = length
+					cmdReceived = 0
 				case '$':
 					// Don't need to do anything with this token for now.
 				default:
-					if cmdArrayReceived < cmdArrayLength {
-						if cmdArrayReceived == 0 {
+					if cmdReceived < cmdLength {
+						if cmdReceived == 0 {
 							cmd.Command = msg
 						} else {
 							cmd.Args = append(cmd.Args, msg)
 						}
-						cmdArrayReceived++
+						cmdReceived++
 					}
 				}
 
 				// Execute command if the array is complete.
-				if cmdArrayReceived == cmdArrayLength {
+				if cmdReceived == cmdLength {
 					if err := c.executeCommand(cmd); err != nil {
 						logger.Error("Error executing command %v: %v", cmd, err)
 					}
 					// Reset for next command.
 					cmd = Command{}
-					cmdArrayLength = 0
+					cmdLength = 0
 				}
 			}
 		}
@@ -108,7 +113,7 @@ func (c *ClientHandler) executeCommand(cmd Command) error {
 // handlePing handles PING commands.
 func (c *ClientHandler) handlePing() error {
 	logger.Info("PING command received.")
-	return c.sendMessage(pingResponse)
+	return c.send(pingResponse)
 }
 
 // handleEcho handles ECHO commands.
@@ -118,7 +123,7 @@ func (c *ClientHandler) handleEcho(args []string) error {
 	}
 	valToEcho := args[0]
 	logger.Info("ECHO %q command received.", valToEcho)
-	return c.sendMessage(encodeBulkString(valToEcho))
+	return c.send(encodeBulkString(valToEcho))
 }
 
 // handleSet handles SET commands.
@@ -142,7 +147,7 @@ func (c *ClientHandler) handleSet(args []string) error {
 			delete(c.Store, key)
 		}()
 	}
-	return c.sendMessage(okResponse)
+	return c.send(okResponse)
 }
 
 // handleGet handles GET commands.
@@ -154,9 +159,9 @@ func (c *ClientHandler) handleGet(args []string) error {
 	logger.Info("GET %s command received.", key)
 	val, ok := c.Store[key]
 	if ok {
-		return c.sendMessage(encodeSimpleString(val))
+		return c.send(encodeSimpleString(val))
 	}
-	return c.sendMessage(nullResponse)
+	return c.send(nullResponse)
 }
 
 // handleConfig handles CONFIG requests.
@@ -164,24 +169,40 @@ func (c *ClientHandler) handleConfig(args []string) error {
 	if len(args) < 2 {
 		return fmt.Errorf("insufficient number of arguments for CONFIG")
 	}
+
 	subCmd := strings.ToLower(args[0])
+
 	switch subCmd {
 	case "get":
 		key := args[1]
 		logger.Info("CONFIG GET %s command received.", key)
+
+		val, found := c.Server.Config[key]
+		if !found {
+			return fmt.Errorf("config key %q not found", key)
+		}
+
+		return c.send(encodeBulkStringArray(2, key, val))
+
 	case "set":
 		if len(args) < 3 {
 			return fmt.Errorf("insufficient number of arguments for CONFIG SET")
 		}
+
 		key := args[1]
-		value := args[2]
-		logger.Info("CONFIG SET %s: %q command received.", key, value)
+		val := args[2]
+		logger.Info("CONFIG SET %s: %q command received.", key, val)
+
+		c.Server.Config[key] = val
+
+		return c.send(okResponse)
 	}
+
 	return nil
 }
 
-// sendMessage sends the message to the client.
-func (c *ClientHandler) sendMessage(msg string) error {
+// send sends the message to the client.
+func (c *ClientHandler) send(msg string) error {
 	_, err := c.Conn.Write([]byte(msg))
 	if err != nil {
 		return fmt.Errorf("error sending message: %v", err)

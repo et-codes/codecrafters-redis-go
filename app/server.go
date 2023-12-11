@@ -14,12 +14,7 @@ type Server struct {
 	Config  ServerConfig
 }
 
-type ServerConfig struct {
-	Host       string
-	Port       int
-	DBDir      string
-	DBFilename string
-}
+type ServerConfig map[string]string
 
 func NewServer(ctx context.Context, config ServerConfig) *Server {
 	return &Server{Context: ctx, Config: config}
@@ -33,11 +28,13 @@ func (s *Server) Run() error {
 	var wg sync.WaitGroup
 
 	// Start TCP listener.
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Config.Host, s.Config.Port))
+	host := s.Config["host"]
+	port := s.Config["port"]
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
-		return fmt.Errorf("failed to bind to port %d: %v", s.Config.Port, err)
+		return fmt.Errorf("failed to bind to port %s: %v", port, err)
 	}
-	logger.Info("Listening on port %d...", s.Config.Port)
+	logger.Info("Listening on port %s...", port)
 
 	// Start goroutine that stops listener when signal is received.
 	wg.Add(1)
@@ -76,7 +73,7 @@ func (s *Server) Run() error {
 		}
 
 		// Create ClientHandler and start goroutine.
-		client := NewClientHandler(ctx, conn)
+		client := NewClientHandler(ctx, conn, s)
 		wg.Add(1)
 		go client.Handle(&wg)
 
