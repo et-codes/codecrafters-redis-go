@@ -1,13 +1,14 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStore(t *testing.T) {
-	s := NewStore(nil)
+	s := NewStore()
 
 	t.Run("can add a value", func(t *testing.T) {
 		err := s.Add("hello", "world")
@@ -34,13 +35,13 @@ func TestStore(t *testing.T) {
 	})
 
 	t.Run("can update a value", func(t *testing.T) {
-		err := s.Add("mykey", "my value")
+		err := s.Add("somekey", "my value")
 		assert.NoError(t, err)
 
-		err = s.Update("mykey", "new value")
+		err = s.Update("somekey", "new value")
 		assert.NoError(t, err)
 
-		val, err := s.Get("mykey")
+		val, err := s.Get("somekey")
 		assert.NoError(t, err)
 		assert.Equal(t, "new value", val)
 	})
@@ -54,5 +55,17 @@ func TestStore(t *testing.T) {
 
 		_, err = s.Get("delete")
 		assert.Error(t, err)
+	})
+
+	t.Run("loads values from db file", func(t *testing.T) {
+		file, err := os.Open("test.rdb")
+		assert.NoError(t, err)
+
+		err = s.Load(file)
+		assert.NoError(t, err)
+
+		val, err := s.Get("mykey")
+		assert.NoError(t, err)
+		assert.Equal(t, "myvalue", val)
 	})
 }

@@ -20,7 +20,7 @@ var logger = logging.New(logging.LevelDebug)
 
 func main() {
 	ctx := context.Background()
-	cfg := NewStore(nil)
+	cfg := NewStore()
 
 	if err := cfg.Add(keyHost, "localhost"); err != nil {
 		logger.Fatal(err.Error())

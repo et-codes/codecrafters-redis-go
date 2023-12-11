@@ -1,22 +1,49 @@
 package main
 
 import (
+	"bufio"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
-	"io"
+	"os"
+)
+
+const (
+	opCodeAuxField   byte = 0xFA // key, value follow
+	opCodeSelectDB   byte = 0xFE // following byte is db number
+	opCodeResizeDB   byte = 0xFB // follwing are 2 length-encoded ints
+	opCodeTypeString byte = 0x00 // following byte(s) are length encoding
+	opCodeEOF        byte = 0xFF // following 8 bytes are CRC64 checksum
 )
 
 type Store struct {
 	kvMap map[string]string
-	db    io.ReadWriteCloser
+	db    *os.File
 }
 
-func NewStore(db io.ReadWriteCloser) *Store {
+func NewStore() *Store {
 	kv := make(map[string]string)
-	return &Store{kvMap: kv, db: db}
+	return &Store{kvMap: kv}
 }
 
 // Load loads the in-memory KV map with values from the db.
-func (s *Store) Load() error {
+func (s *Store) Load(db *os.File) error {
+	if db != nil {
+		s.db = db
+	}
+	defer db.Close()
+
+	data, err := parseRDB(db)
+	if err != nil {
+		return err
+	}
+
+	if len(data) == 2 {
+		if err := s.Add(data[0], data[1]); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -66,4 +93,123 @@ func (s *Store) Delete(key string) error {
 	}
 	delete(s.kvMap, key)
 	return nil
+}
+
+func parseRDB(file *os.File) ([]string, error) {
+	reader := bufio.NewReader(file)
+	result := []string{}
+
+	// Read header.
+	header := make([]byte, 9)
+	_, err := reader.Read(header)
+	if err != nil {
+		return result, err
+	}
+	logger.Debug("RDB file header: %s %s", header[:5], header[5:])
+
+	// Skip the junk after the header.
+	if _, err := reader.ReadBytes(opCodeResizeDB); err != nil {
+		return result, err
+	}
+	if _, err := reader.Read(make([]byte, 2)); err != nil {
+		return result, err
+	}
+
+	for {
+		opcode, err := reader.ReadByte()
+		if err != nil {
+			return result, err
+		}
+
+		switch opcode {
+		case opCodeSelectDB:
+			// Follwing byte(s) is the db number.
+			dbNum, err := decodeLength(reader)
+			if err != nil {
+				return result, err
+			}
+			logger.Debug("DB number: %d", dbNum)
+		case opCodeAuxField:
+			// Length prefixed key and value strings follow.
+			kv := [][]byte{}
+			for i := 0; i < 2; i++ {
+				length, err := decodeLength(reader)
+				if err != nil {
+					return result, err
+				}
+				data := make([]byte, int(length))
+				if _, err = reader.Read(data); err != nil {
+					return result, err
+				}
+				kv = append(kv, data)
+			}
+			logger.Debug("AUX key-value pair: %s: %s", kv[0], kv[1])
+		case opCodeResizeDB:
+			// Implement
+		case opCodeTypeString:
+			kv := [][]byte{}
+			for i := 0; i < 2; i++ {
+				length, err := decodeLength(reader)
+				if err != nil {
+					return result, err
+				}
+				data := make([]byte, int(length))
+				if _, err = reader.Read(data); err != nil {
+					return result, err
+				}
+				kv = append(kv, data)
+			}
+			logger.Debug("STRING key-value pair: %s: %s", kv[0], kv[1])
+			result = append(result, string(kv[0]), string(kv[1]))
+			return result, nil
+		case opCodeEOF:
+			// Get the 8-byte checksum after this
+			checksum := make([]byte, 8)
+			_, err := reader.Read(checksum)
+			if err != nil {
+				return result, err
+			}
+			logger.Debug("Checksum: %s", hex.EncodeToString(checksum))
+			return result, nil
+		default:
+			// Handle any other tags.
+		}
+	}
+}
+
+func decodeLength(r *bufio.Reader) (int, error) {
+	num, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+
+	switch {
+	case num <= 63: // leading bits 00
+		// Remaining 6 bits are the length.
+		return int(num & 0b00111111), nil
+	case num <= 127: // leading bits 01
+		// Remaining 6 bits plus next byte are the length
+		nextNum, err := r.ReadByte()
+		if err != nil {
+			return 0, err
+		}
+		length := binary.BigEndian.Uint16([]byte{num & 0b00111111, nextNum})
+		return int(length), nil
+	case num <= 191: // leading bits 10
+		// Next 4 bytes are the length
+		bytes := make([]byte, 4)
+		_, err := r.Read(bytes)
+		if err != nil {
+			return 0, err
+		}
+		length := binary.BigEndian.Uint32(bytes)
+		return int(length), nil
+	case num <= 255: // leading bits 11
+		// Next 6 bits indicate the format of the encoded object.
+		// TODO: This will result in problems on the next read, possibly.
+		valueType := num & 0b00111111
+		return int(valueType), nil
+	default:
+		return 0, err
+	}
 }

@@ -29,7 +29,7 @@ func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser, server *Serv
 		Context: ctx,
 		Conn:    conn,
 		Server:  server,
-		Store:   NewStore(nil),
+		Store:   NewStore(),
 	}
 }
 
