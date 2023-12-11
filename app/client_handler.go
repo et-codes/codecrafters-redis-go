@@ -56,10 +56,10 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 	if c.Server.IsPersistent() {
 		file, err := c.dbFile()
 		if err != nil {
-			logger.Fatal("Error opening db file: %v", err)
+			logger.Error("Error opening db file: %v", err)
 		}
 		if err := c.Store.Load(file); err != nil {
-			logger.Fatal("Error reading from db: %v", err)
+			logger.Error("Error reading from db: %v", err)
 		}
 	} else {
 		logger.Warning("Database file not provided, data will not be saved between sessions.")
@@ -76,7 +76,13 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 
 				switch msg[0] {
 				case '*':
-					length := decodeArrayLength(msg)
+					var length int
+					if len(msg) > 1 {
+						length = decodeArrayLength(msg)
+					} else {
+						// "*" can be passed as a parameter for KEYS command.
+						length = 0
+					}
 					cmdLength = length
 					cmdReceived = 0
 				case '$':
@@ -119,6 +125,8 @@ func (c *ClientHandler) executeCommand(cmd Command) error {
 		return c.handleGet(cmd.Args)
 	case "config":
 		return c.handleConfig(cmd.Args)
+	case "keys":
+		return c.handleKeys(cmd.Args)
 	default:
 		return fmt.Errorf("unrecognized command %q", cmd.Command)
 	}
@@ -220,6 +228,29 @@ func (c *ClientHandler) handleConfig(args []string) error {
 	}
 
 	return nil
+}
+
+// handleKeys handles KEY commands.
+func (c *ClientHandler) handleKeys(args []string) error {
+	var key, result string
+	if len(args) > 0 {
+		key = args[0]
+		val, err := c.Store.Get(key)
+		if err != nil {
+			return err
+		}
+		result = encodeBulkStringArray(1, val)
+	} else {
+		key = "*"
+		val, err := c.Store.Get(key)
+		if err != nil {
+			return err
+		}
+		result = val // "*" key will return an already-encoded array
+	}
+	logger.Info("KEYS %s command received.", key)
+
+	return c.send(result)
 }
 
 // send sends the message to the client.

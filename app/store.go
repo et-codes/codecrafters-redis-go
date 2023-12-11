@@ -53,8 +53,17 @@ func (s *Store) Save() error {
 }
 
 // Get retreives the value for the given key from the KV map. An error
-// is returned if the key is not found.
+// is returned if the key is not found. A key of "*" will return an encoded
+// array of all keys.
 func (s *Store) Get(key string) (string, error) {
+	if key == "*" {
+		keys := []string{}
+		for key := range s.kvMap {
+			keys = append(keys, key)
+		}
+		return encodeBulkStringArray(len(keys), keys...), nil
+	}
+
 	val, found := s.kvMap[key]
 	if !found {
 		return "", fmt.Errorf("key %q not found", key)
