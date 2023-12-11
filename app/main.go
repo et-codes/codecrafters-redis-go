@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	flagDBDir      = "--dir"             // command-line flag for db directory
-	flagDBFilename = "--dbfilename"      // command-line flag for db filename
-	keyDBDir       = "config:dir"        // store key for db directory
-	keyDBFilename  = "config:dbfilename" // store key for db filename
-	keyHost        = "config:host"       // store key for server host URL
-	keyPort        = "config:port"       // store key for server port
+	flagDBDir      = "--dir"        // command-line flag for db directory
+	flagDBFilename = "--dbfilename" // command-line flag for db filename
+	keyDBDir       = "dir"          // store key for db directory
+	keyDBFilename  = "dbfilename"   // store key for db filename
+	keyHost        = "host"         // store key for server host URL
+	keyPort        = "port"         // store key for server port
 )
 
 var logger = logging.New(logging.LevelDebug)
