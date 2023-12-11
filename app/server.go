@@ -11,12 +11,10 @@ import (
 
 type Server struct {
 	Context context.Context
-	Config  ServerConfig
+	Config  *Store
 }
 
-type ServerConfig map[string]string
-
-func NewServer(ctx context.Context, config ServerConfig) *Server {
+func NewServer(ctx context.Context, config *Store) *Server {
 	return &Server{Context: ctx, Config: config}
 }
 
@@ -28,8 +26,8 @@ func (s *Server) Run() error {
 	var wg sync.WaitGroup
 
 	// Start TCP listener.
-	host := s.Config["host"]
-	port := s.Config["port"]
+	host, _ := s.Config.Get("host")
+	port, _ := s.Config.Get("port")
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
 		return fmt.Errorf("failed to bind to port %s: %v", port, err)

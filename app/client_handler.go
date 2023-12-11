@@ -21,7 +21,7 @@ type ClientHandler struct {
 	Context context.Context
 	Conn    io.ReadWriteCloser
 	Server  *Server
-	Store   map[string]string
+	Store   *Store
 }
 
 func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser, server *Server) *ClientHandler {
@@ -29,7 +29,7 @@ func NewClientHandler(ctx context.Context, conn io.ReadWriteCloser, server *Serv
 		Context: ctx,
 		Conn:    conn,
 		Server:  server,
-		Store:   make(map[string]string),
+		Store:   NewStore(),
 	}
 }
 
@@ -134,7 +134,9 @@ func (c *ClientHandler) handleSet(args []string) error {
 	key := args[0]
 	value := args[1]
 	logger.Info("SET %s: %q command received.", key, value)
-	c.Store[key] = value
+	if err := c.Store.Add(key, value); err != nil {
+		return err
+	}
 
 	// Check for expiration arguments.
 	if len(args) == 4 && args[2] == "px" {
@@ -144,7 +146,9 @@ func (c *ClientHandler) handleSet(args []string) error {
 		}
 		go func() {
 			time.Sleep(time.Duration(expiry) * time.Millisecond)
-			delete(c.Store, key)
+			if err := c.Store.Delete(key); err != nil {
+				logger.Error(err.Error())
+			}
 		}()
 	}
 	return c.send(okResponse)
@@ -157,11 +161,12 @@ func (c *ClientHandler) handleGet(args []string) error {
 	}
 	key := args[0]
 	logger.Info("GET %s command received.", key)
-	val, ok := c.Store[key]
-	if ok {
-		return c.send(encodeSimpleString(val))
+	val, err := c.Store.Get(key)
+	if err != nil {
+		logger.Error(err.Error())
+		return c.send(nullResponse)
 	}
-	return c.send(nullResponse)
+	return c.send(encodeSimpleString(val))
 }
 
 // handleConfig handles CONFIG requests.
@@ -177,9 +182,9 @@ func (c *ClientHandler) handleConfig(args []string) error {
 		key := args[1]
 		logger.Info("CONFIG GET %s command received.", key)
 
-		val, found := c.Server.Config[key]
-		if !found {
-			return fmt.Errorf("config key %q not found", key)
+		val, err := c.Server.Config.Get(key)
+		if err != nil {
+			return err
 		}
 
 		return c.send(encodeBulkStringArray(2, key, val))
@@ -193,7 +198,9 @@ func (c *ClientHandler) handleConfig(args []string) error {
 		val := args[2]
 		logger.Info("CONFIG SET %s: %q command received.", key, val)
 
-		c.Server.Config[key] = val
+		if err := c.Server.Config.Add(key, val); err != nil {
+			return err
+		}
 
 		return c.send(okResponse)
 	}

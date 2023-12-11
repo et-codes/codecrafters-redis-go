@@ -11,19 +11,27 @@ var logger = logging.New(logging.LevelDebug)
 
 func main() {
 	ctx := context.Background()
+	cfg := NewStore()
 
-	cfg := ServerConfig{
-		"host": "localhost",
-		"port": "6379",
+	if err := cfg.Add("host", "localhost"); err != nil {
+		logger.Fatal(err.Error())
 	}
 
-	// Get command-line arguments.
+	if err := cfg.Add("port", "6379"); err != nil {
+		logger.Fatal(err.Error())
+	}
+
+	// Handle command-line arguments.
 	args := os.Args
 	for i := 1; i < len(args); i += 2 {
 		if args[i] == "--dir" && len(args) >= i {
-			cfg["dir"] = args[i+1]
+			if err := cfg.Add("dir", args[i+1]); err != nil {
+				logger.Fatal(err.Error())
+			}
 		} else if args[i] == "--dbfilename" && len(args) >= i {
-			cfg["dbfilename"] = args[i+1]
+			if err := cfg.Add("dbfilename", args[i+1]); err != nil {
+				logger.Fatal(err.Error())
+			}
 		}
 	}
 	logger.Debug("Server config: %+v", cfg)
