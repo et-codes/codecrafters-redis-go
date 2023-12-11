@@ -15,7 +15,8 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, config *Store) *Server {
-	return &Server{Context: ctx, Config: config}
+	server := &Server{Context: ctx, Config: config}
+	return server
 }
 
 func (s *Server) Run() error {
@@ -77,4 +78,11 @@ func (s *Server) Run() error {
 
 		logger.Info("Client connected.")
 	}
+}
+
+// IsPersistent returns true if a db directory and filename are defined.
+func (s *Server) IsPersistent() bool {
+	_, dirErr := s.Config.Get(keyDBDir)
+	_, fileErr := s.Config.Get(keyDBFilename)
+	return dirErr == nil && fileErr == nil
 }

@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +52,18 @@ func (c *ClientHandler) Handle(wg *sync.WaitGroup) {
 		cmdLength   int     // Number of words in command + args
 		cmdReceived int     // Number of words received from client
 	)
+
+	if c.Server.IsPersistent() {
+		file, err := c.dbFile()
+		if err != nil {
+			logger.Fatal("Error opening db file: %v", err)
+		}
+		if err := c.Store.Load(file); err != nil {
+			logger.Fatal("Error reading from db: %v", err)
+		}
+	} else {
+		logger.Warning("Database file not provided, data will not be saved between sessions.")
+	}
 
 	for {
 		select {
@@ -215,4 +229,27 @@ func (c *ClientHandler) send(msg string) error {
 		return fmt.Errorf("error sending message: %v", err)
 	}
 	return nil
+}
+
+// dbFile returns a pointer to the database file, if there is one configured.
+func (c *ClientHandler) dbFile() (*os.File, error) {
+	dir, err := c.Server.Config.Get(keyDBDir)
+	if err != nil {
+		return nil, fmt.Errorf("no database path provided: %v", err)
+	}
+	filename, err := c.Server.Config.Get(keyDBFilename)
+	if err != nil {
+		return nil, fmt.Errorf("no database filename provided: %v", err)
+	}
+
+	path := filepath.Join(dir, filename)
+	if _, err := os.Stat(path); err != nil {
+		return nil, fmt.Errorf("database file not found: %v", err)
+	}
+
+	file, err := os.OpenFile(path, os.O_RDWR, 0666)
+	if err != nil {
+		return nil, fmt.Errorf("unable to open file: %v", err)
+	}
+	return file, nil
 }
