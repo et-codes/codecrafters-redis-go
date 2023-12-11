@@ -7,29 +7,38 @@ import (
 	"github.com/et-codes/codecrafters-redis-go/logging"
 )
 
+const (
+	flagDBDir      = "--dir"             // command-line flag for db directory
+	flagDBFilename = "--dbfilename"      // command-line flag for db filename
+	keyDBDir       = "config:dir"        // store key for db directory
+	keyDBFilename  = "config:dbfilename" // store key for db filename
+	keyHost        = "config:host"       // store key for server host URL
+	keyPort        = "config:port"       // store key for server port
+)
+
 var logger = logging.New(logging.LevelDebug)
 
 func main() {
 	ctx := context.Background()
 	cfg := NewStore()
 
-	if err := cfg.Add("host", "localhost"); err != nil {
+	if err := cfg.Add(keyHost, "localhost"); err != nil {
 		logger.Fatal(err.Error())
 	}
 
-	if err := cfg.Add("port", "6379"); err != nil {
+	if err := cfg.Add(keyPort, "6379"); err != nil {
 		logger.Fatal(err.Error())
 	}
 
 	// Handle command-line arguments.
 	args := os.Args
 	for i := 1; i < len(args); i += 2 {
-		if args[i] == "--dir" && len(args) >= i {
-			if err := cfg.Add("dir", args[i+1]); err != nil {
+		if args[i] == flagDBDir && len(args) >= i {
+			if err := cfg.Add(keyDBDir, args[i+1]); err != nil {
 				logger.Fatal(err.Error())
 			}
-		} else if args[i] == "--dbfilename" && len(args) >= i {
-			if err := cfg.Add("dbfilename", args[i+1]); err != nil {
+		} else if args[i] == flagDBFilename && len(args) >= i {
+			if err := cfg.Add(keyDBFilename, args[i+1]); err != nil {
 				logger.Fatal(err.Error())
 			}
 		}

@@ -26,8 +26,8 @@ func (s *Server) Run() error {
 	var wg sync.WaitGroup
 
 	// Start TCP listener.
-	host, _ := s.Config.Get("host")
-	port, _ := s.Config.Get("port")
+	host, _ := s.Config.Get(keyHost)
+	port, _ := s.Config.Get(keyPort)
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%s", host, port))
 	if err != nil {
 		return fmt.Errorf("failed to bind to port %s: %v", port, err)
