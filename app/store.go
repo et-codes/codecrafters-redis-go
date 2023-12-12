@@ -38,8 +38,8 @@ func (s *Store) Load(db *os.File) error {
 		return err
 	}
 
-	if len(data) == 2 {
-		if err := s.Add(data[0], data[1]); err != nil {
+	for i := 0; i < len(data); i += 2 {
+		if err := s.Add(data[i], data[i+1]); err != nil {
 			return err
 		}
 	}
@@ -170,7 +170,6 @@ func parseRDB(file *os.File) ([]string, error) {
 			}
 			logger.Debug("STRING key-value pair: %s: %s", kv[0], kv[1])
 			result = append(result, string(kv[0]), string(kv[1]))
-			return result, nil
 		case opCodeEOF:
 			// Get the 8-byte checksum after this
 			checksum := make([]byte, 8)
