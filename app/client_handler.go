@@ -206,7 +206,7 @@ func (c *ClientHandler) handleConfig(args []string) error {
 
 		val, err := c.Server.Config.Get(key)
 		if err != nil {
-			return err
+			return c.send(nullResponse)
 		}
 
 		return c.send(encodeBulkStringArray(2, key, val))
