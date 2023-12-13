@@ -166,12 +166,8 @@ func (c *ClientHandler) handleSet(args []string) error {
 		if err != nil {
 			return fmt.Errorf("error parsing expiration time: %v", err)
 		}
-		go func() {
-			time.Sleep(time.Duration(expiry) * time.Millisecond)
-			if err := c.Store.Delete(key); err != nil {
-				logger.Error(err.Error())
-			}
-		}()
+		duration := time.Duration(expiry) * time.Millisecond
+		c.Store.expiry[key] = time.Now().UTC().Add(duration)
 	}
 	return c.send(okResponse)
 }
@@ -188,6 +184,17 @@ func (c *ClientHandler) handleGet(args []string) error {
 		logger.Error(err.Error())
 		return c.send(nullResponse)
 	}
+
+	// Check if KV pair is expired. If so, delete and return null.
+	expiry, hasExpiration := c.Store.expiry[key]
+	if hasExpiration && expiry.Before(time.Now().UTC()) {
+		if err := c.Store.Delete(key); err != nil {
+			logger.Error(err.Error())
+		}
+		delete(c.Store.expiry, key) // remove expiry record
+		return c.send(nullResponse)
+	}
+
 	return c.send(encodeSimpleString(val))
 }
 

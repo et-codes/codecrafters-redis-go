@@ -27,7 +27,8 @@ type Store struct {
 
 func NewStore() *Store {
 	kv := make(map[string]string)
-	return &Store{kv: kv}
+	exp := make(map[string]time.Time)
+	return &Store{kv: kv, expiry: exp}
 }
 
 // Load loads the in-memory KV map with values from the db.
@@ -37,7 +38,7 @@ func (s *Store) Load(db *os.File) error {
 	}
 	defer db.Close()
 
-	data, err := parseRDB(db)
+	data, err := parseRDB(db, s.expiry)
 	if err != nil {
 		return err
 	}
@@ -109,7 +110,7 @@ func (s *Store) Delete(key string) error {
 }
 
 // parseRDB parses the values in the RDB file.
-func parseRDB(file *os.File) ([]string, error) {
+func parseRDB(file *os.File, expiry map[string]time.Time) ([]string, error) {
 	reader := bufio.NewReader(file)
 	result := []string{}
 
@@ -196,15 +197,16 @@ func parseRDB(file *os.File) ([]string, error) {
 			}
 
 			if hasExpiration {
+				hasExpiration = false
 				if expiration.Before(time.Now().UTC()) {
 					hasExpiration = false
 					break
 				}
+				expiry[string(kv[0])] = expiration
 			}
 
 			result = append(result, string(kv[0]), string(kv[1]))
 			logger.Debug("STRING key-value pair: %s: %s", kv[0], kv[1])
-			hasExpiration = false
 		case opCodeEOF:
 			// Get the 8-byte checksum after this
 			checksum := make([]byte, 8)
