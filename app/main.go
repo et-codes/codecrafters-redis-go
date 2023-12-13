@@ -16,7 +16,7 @@ const (
 	keyPort        = "port"         // store key for server port
 )
 
-var logger = logging.New(logging.LevelDebug)
+var logger = logging.New(logging.LevelInfo)
 
 func main() {
 	ctx := context.Background()
